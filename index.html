@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explosives Search</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f9;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 20px;
+        }
+
+        header h1 {
+            color: #2c3e50;
+            margin:0;
+        }
+
+        h2 {
+            color: #34495e;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input[type="text"],
+        .form-group textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group textarea:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .search-section, .results-section, .add-explosive-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 6px;
+            border: 1px solid #e7e7e7;
+        }
+
+        #showAddExplosiveFormBtn {
+            background-color: #2ecc71;
+        }
+        #showAddExplosiveFormBtn:hover {
+            background-color: #27ae60;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .explosive-card {
+            background-color: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .explosive-card h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #3498db;
+            font-size: 1.1em;
+        }
+        .explosive-card p {
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            color: #555;
+        }
+        .explosive-card strong {
+            color: #333;
+        }
+
+        #noResultsMessage, #addFormMessage {
+            color: #777;
+            font-style: italic;
+        }
+        #addFormMessage.success {
+            color: #2ecc71;
+        }
+        #addFormMessage.error {
+            color: #e74c3c;
+        }
+
+        .error-message {
+            color: #e74c3c;
+            background-color: #ffeaea;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #e74c3c;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 25px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            .modal-content {
+                width: 90%;
+                margin: 15% auto;
+            }
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Explosives Database</h1>
+        </header>
+
+        <section class="search-section">
+            <h2>Search Explosives</h2>
+            <form id="searchForm">
+                <div class="form-group">
+                    <label for="searchClassificationCode">Classification Code:</label>
+                    <input type="text" id="searchClassificationCode" name="searchClassificationCode" placeholder="e.g., 1.1">
+                </div>
+                <div class="form-group">
+                    <label for="searchSubdivision">Subdivision (optional):</label>
+                    <input type="text" id="searchSubdivision" name="searchSubdivision" placeholder="e.g., D">
+                </div>
+                <button type="submit">Search</button>
+            </form>
+        </section>
+
+        <section class="results-section">
+            <h2>Results</h2>
+            <div id="resultsContainer" class="results-grid">
+                <p id="noResultsMessage">No results found or no search performed yet.</p>
+            </div>
+        </section>
+
+        <section class="add-explosive-section">
+            <button id="showAddExplosiveFormBtn">Add New Explosive</button>
+            <div id="addExplosiveModal" class="modal">
+                <div class="modal-content">
+                    <span class="close-button">&times;</span>
+                    <h2>Add New Explosive</h2>
+                    <form id="addExplosiveForm">
+                        <div class="form-group">
+                            <label for="addClassificationCode">Classification Code*:</label>
+                            <input type="text" id="addClassificationCode" required placeholder="e.g., 1.4">
+                        </div>
+                        <div class="form-group">
+                            <label for="addSubdivision">Subdivision:</label>
+                            <input type="text" id="addSubdivision" placeholder="e.g., S">
+                        </div>
+                        <div class="form-group">
+                            <label for="addDescription">Description:</label>
+                            <textarea id="addDescription" placeholder="e.g., Articles and substances which present no significant hazard"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="addCompatibilityGroup">Compatibility Group:</label>
+                            <input type="text" id="addCompatibilityGroup" placeholder="e.g., S">
+                        </div>
+                        <div class="form-group">
+                            <label for="addUnSerialNumber">UN Serial Number:</label>
+                            <input type="text" id="addUnSerialNumber" placeholder="e.g., 0337">
+                        </div>
+                        <div class="form-group">
+                            <label for="addCompatibleExplosives">Compatible Explosives (comma-separated UN numbers or names):</label>
+                            <input type="text" id="addCompatibleExplosives" placeholder="e.g., UN000X, UN000Y">
+                        </div>
+                        <button type="submit">Save Explosive</button>
+                        <p id="addFormMessage"></p>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // IMPORTANT: Replace with your actual Supabase URL and Anon Key
+        const SUPABASE_URL = 'https://hdmerrrbougbcqtsvotp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkbWVycnJib3VnYmNxdHN2b3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwNTk4MTksImV4cCI6MjA2NDYzNTgxOX0.jji-X7QzGWw_UfygK83xlYFXfZcbwXKEzhOiwfTB2kA';
+
+        // Initialize Supabase client - FIXED: Use window.supabase instead of supabase.createClient
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // DOM Elements
+        const searchForm = document.getElementById('searchForm');
+        const searchClassificationCodeInput = document.getElementById('searchClassificationCode');
+        const searchSubdivisionInput = document.getElementById('searchSubdivision');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const noResultsMessage = document.getElementById('noResultsMessage');
+
+        const showAddExplosiveFormBtn = document.getElementById('showAddExplosiveFormBtn');
+        const addExplosiveModal = document.getElementById('addExplosiveModal');
+        const closeButton = document.querySelector('.close-button');
+        const addExplosiveForm = document.getElementById('addExplosiveForm');
+        const addClassificationCodeInput = document.getElementById('addClassificationCode');
+        const addSubdivisionInput = document.getElementById('addSubdivision');
+        const addDescriptionInput = document.getElementById('addDescription');
+        const addCompatibilityGroupInput = document.getElementById('addCompatibilityGroup');
+        const addUnSerialNumberInput = document.getElementById('addUnSerialNumber');
+        const addCompatibleExplosivesInput = document.getElementById('addCompatibleExplosives');
+        const addFormMessage = document.getElementById('addFormMessage');
+
+        // --- Search Functionality ---
+        searchForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const classificationCode = searchClassificationCodeInput.value.trim();
+            const subdivision = searchSubdivisionInput.value.trim();
+
+            if (!classificationCode) {
+                alert('Please enter a Classification Code to search.');
+                return;
+            }
+
+            await fetchExplosives(classificationCode, subdivision);
+        });
+
+        async function fetchExplosives(classificationCode, subdivision) {
+            resultsContainer.innerHTML = ''; // Clear previous results
+            noResultsMessage.style.display = 'none';
+
+            try {
+                let query = supabase.from('explosives').select('*');
+
+                if (classificationCode) {
+                    query = query.eq('classification_code', classificationCode);
+                }
+                if (subdivision) {
+                    query = query.eq('subdivision', subdivision);
+                }
+
+                const { data, error } = await query;
+
+                if (error) {
+                    console.error('Error fetching explosives:', error);
+                    resultsContainer.innerHTML = `<p class="error-message">Error fetching data: ${error.message}</p>`;
+                    return;
+                }
+
+                if (data && data.length > 0) {
+                    displayExplosives(data);
+                } else {
+                    noResultsMessage.style.display = 'block';
+                }
+            } catch (err) {
+                console.error('Unexpected error:', err);
+                resultsContainer.innerHTML = `<p class="error-message">An unexpected error occurred.</p>`;
+            }
+        }
+
+        function displayExplosives(explosives) {
+            explosives.forEach(explosive => {
+                const card = document.createElement('div');
+                card.classList.add('explosive-card');
+
+                let compatibleHtml = 'N/A';
+                if (explosive.compatible_explosives && explosive.compatible_explosives.length > 0) {
+                    compatibleHtml = `<ul>${explosive.compatible_explosives.map(item => `<li>${item}</li>`).join('')}</ul>`;
+                }
+
+                card.innerHTML = `
+                    <h3>${explosive.description || 'N/A'}</h3>
+                    <p><strong>Classification:</strong> ${explosive.classification_code || 'N/A'}.${explosive.subdivision || ''}</p>
+                    <p><strong>UN Serial Number:</strong> ${explosive.un_serial_number || 'N/A'}</p>
+                    <p><strong>Compatibility Group:</strong> ${explosive.compatibility_group || 'N/A'}</p>
+                    <div><strong>Compatible With:</strong> ${compatibleHtml}</div>
+                `;
+                resultsContainer.appendChild(card);
+            });
+        }
+
+        // --- Add Explosive Functionality ---
+        showAddExplosiveFormBtn.addEventListener('click', () => {
+            addExplosiveModal.style.display = 'block';
+            addFormMessage.textContent = ''; // Clear previous messages
+            addExplosiveForm.reset(); // Clear form fields
+        });
+
+        closeButton.addEventListener('click', () => {
+            addExplosiveModal.style.display = 'none';
+        });
+
+        window.addEventListener('click', (event) => {
+            if (event.target === addExplosiveModal) {
+                addExplosiveModal.style.display = 'none';
+            }
+        });
+
+        addExplosiveForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            addFormMessage.textContent = '';
+            addFormMessage.className = '';
+
+            const classificationCode = addClassificationCodeInput.value.trim();
+            const subdivision = addSubdivisionInput.value.trim();
+            const description = addDescriptionInput.value.trim();
+            const compatibilityGroup = addCompatibilityGroupInput.value.trim();
+            const unSerialNumber = addUnSerialNumberInput.value.trim();
+            const compatibleExplosivesRaw = addCompatibleExplosivesInput.value.trim();
+
+            if (!classificationCode) {
+                addFormMessage.textContent = 'Classification Code is required.';
+                addFormMessage.className = 'error';
+                return;
+            }
+
+            // Convert comma-separated string to array for compatible_explosives
+            const compatibleExplosivesArray = compatibleExplosivesRaw
+                ? compatibleExplosivesRaw.split(',').map(item => item.trim()).filter(item => item)
+                : [];
+
+            const newExplosive = {
+                classification_code: classificationCode,
+                subdivision: subdivision || null,
+                description: description || null,
+                compatibility_group: compatibilityGroup || null,
+                un_serial_number: unSerialNumber || null,
+                compatible_explosives: compatibleExplosivesArray.length > 0 ? compatibleExplosivesArray : null
+            };
+
+            try {
+                const { data, error } = await supabase.from('explosives').insert([newExplosive]).select();
+
+                if (error) {
+                    console.error('Error adding explosive:', error);
+                    addFormMessage.textContent = `Error: ${error.message}`;
+                    addFormMessage.className = 'error';
+                    // Specific check for unique constraint violation on classification_code
+                    if (error.message.includes('duplicate key value violates unique constraint "explosives_classification_code_key"')) {
+                         addFormMessage.textContent = 'Error: Classification Code already exists.';
+                    } else if (error.message.includes('duplicate key value violates unique constraint "explosives_un_serial_number_key"')) {
+                        addFormMessage.textContent = 'Error: UN Serial Number already exists.';
+                    }
+                    return;
+                }
+
+                if (data) {
+                    addFormMessage.textContent = 'Explosive added successfully!';
+                    addFormMessage.className = 'success';
+                    addExplosiveForm.reset();
+                    // Optionally refresh search results if there was an active search
+                    if (searchClassificationCodeInput.value) {
+                         fetchExplosives(searchClassificationCodeInput.value, searchSubdivisionInput.value);
+                    }
+                }
+            } catch (err) {
+                console.error('Unexpected error saving explosive:', err);
+                addFormMessage.textContent = 'An unexpected error occurred while saving.';
+                addFormMessage.className = 'error';
+            }
+        });
+
+        // Test connection on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const { data, error } = await supabase.from('explosives').select('count', { count: 'exact', head: true });
+                if (error) {
+                    console.error('Database connection test failed:', error);
+                    resultsContainer.innerHTML = `<p class="error-message">Database connection failed. Please check your Supabase configuration.</p>`;
+                } else {
+                    console.log('Database connected successfully');
+                }
+            } catch (err) {
+                console.error('Connection test error:', err);
+                resultsContainer.innerHTML = `<p class="error-message">Failed to connect to database. Please check your network connection.</p>`;
+            }
+        });
+    </script>
+</body>
+</html>
